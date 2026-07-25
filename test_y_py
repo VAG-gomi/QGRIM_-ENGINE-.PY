@@ -1,0 +1,52 @@
+"""Tests for the Pauli-Y gate."""
+import pytest
+from conftest import fresh, assert_norm, assert_amp, assert_prob, Q412_TOL
+from QGRIM_ENGINE import QGRIMSim, STATES
+
+
+class TestPauliY:
+    def test_y_on_zero(self):
+        """Y|0⟩ = i|1⟩ — amplitude at |1⟩ is +i."""
+        sim = fresh(); sim._pauli_y(0)
+        assert_amp(sim, 0b0001, 1j)
+        assert_amp(sim, 0b0000, 0j)
+
+    def test_y_on_one(self):
+        """Y|1⟩ = -i|0⟩ — amplitude at |0⟩ is -i."""
+        sim = fresh(); sim._pauli_x(0); sim._pauli_y(0)
+        assert_amp(sim, 0b0000, -1j)
+        assert_amp(sim, 0b0001, 0j)
+
+    def test_y_squared_is_identity(self):
+        """Y²=I."""
+        sim = fresh(); sim._pauli_y(0); sim._pauli_y(0)
+        assert abs(sim.state[0] - 1.0) < 1e-9
+        for i in range(1, STATES):
+            assert abs(sim.state[i]) < 1e-9
+
+    def test_y_preserves_norm(self):
+        """‖Y|ψ⟩‖ = 1 for all qubits."""
+        for q in range(4):
+            sim = fresh(); sim._pauli_y(q)
+            assert_norm(sim)
+
+    def test_y_on_each_qubit(self):
+        """Y on qubit q produces i at the flipped basis — others zero."""
+        for q in range(4):
+            sim = fresh(); sim._pauli_y(q)
+            expected = 1 << q
+            assert abs(sim.state[expected] - 1j) < Q412_TOL, \
+                f"Y on q{q}: expected i at |{expected:04b}⟩, got {sim.state[expected]}"
+
+    def test_y_measurement_probability(self):
+        """Measuring after Y|0⟩ always gives 1 (P(1)=1, P(0)=0)."""
+        sim = fresh(); sim._pauli_y(0)
+        assert_prob(sim, 0b0000, 0.0)
+        assert_prob(sim, 0b0001, 1.0)
+
+    def test_y_via_assembly(self):
+        """Assembled Y instruction matches direct call."""
+        from QGRIM_ENGINE import assemble
+        prog = assemble("INIT\nY 0\nMEASURE 0\nHALT")
+        sim = QGRIMSim(); sim.run(prog)
+        assert sim.measurements[0] == 1
